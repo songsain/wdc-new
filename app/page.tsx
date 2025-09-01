@@ -1,13 +1,49 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import Image from "next/image";
+import mapboxgl from "mapbox-gl";
 
 export default function Home() {
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+    if (!token) {
+      console.error("Missing NEXT_PUBLIC_MAPBOX_TOKEN");
+      return;
+    }
+    mapboxgl.accessToken = token;
+
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: "mapbox://styles/mapbox/streets-v12",
+      center: [127.024612, 37.5326], // 서울
+      zoom: 10,
+    });
+    mapRef.current = map;
+
+    // 네비게이션(줌) 컨트롤
+    map.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+    // 마커 예시
+    new mapboxgl.Marker().setLngLat([127.024612, 37.5326]).addTo(map);
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
   return (
     <div className="font-sans min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#0f0f0f] to-[#1a1a1a] text-white p-8">
-      
       {/* 로고 */}
       <header className="mb-12">
         <Image
-          src="/wonderchain-logo.png" // 로고 이미지 파일
+          src="/wonderchain-logo.png"
           alt="WonderChain Logo"
           width={200}
           height={60}
@@ -15,7 +51,7 @@ export default function Home() {
       </header>
 
       {/* 소개 텍스트 */}
-      <main className="text-center space-y-6 max-w-xl">
+      <main className="text-center space-y-6 max-w-xl w-full">
         <h1 className="text-4xl font-bold">Welcome to WonderChain</h1>
         <p className="text-lg text-gray-300">
           Explore the next generation Web3.5 ecosystem. Join our community and
@@ -32,7 +68,7 @@ export default function Home() {
           >
             Visit Website
           </a>
-          <a
+        <a
             href="https://t.me/wonderchain"
             target="_blank"
             rel="noopener noreferrer"
@@ -40,6 +76,11 @@ export default function Home() {
           >
             Join Telegram
           </a>
+        </div>
+
+        {/* 지도 영역 */}
+        <div className="w-full h-[500px] mt-8 rounded-lg overflow-hidden ring-1 ring-white/10">
+          <div ref={mapContainerRef} className="w-full h-full" />
         </div>
       </main>
 
