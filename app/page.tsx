@@ -158,7 +158,7 @@ export default function Home() {
         </div>
 
         {/* 지도 + 오버레이 버튼 */}
-        <div className="relative w-full h-[70vh] mt-8 rounded-lg overflow-hidden ring-1 ring-white/10">
+        <div className="relative w-full h-[400px] mt-8 rounded-lg overflow-hidden ring-1 ring-white/10">
           {/* 지도 컨테이너 */}
           <div ref={mapContainerRef} className="w-full h-full" />
 
