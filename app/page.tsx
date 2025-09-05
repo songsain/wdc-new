@@ -5,11 +5,24 @@ import Image from "next/image";
 import mapboxgl from "mapbox-gl";
 
 type LngLat = { lng: number; lat: number };
+type Feature = {
+  type: "Feature";
+  properties: {
+    id: string;
+    slug: string;
+    name: string;
+    summary?: string | null;
+    description?: string | null;
+    image_url?: string | null;
+  };
+  geometry: { type: "Point"; coordinates: [number, number] };
+};
+type FC = { type: "FeatureCollection"; features: Feature[] };
 
 export default function Home() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const meMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
   const [locating, setLocating] = useState(false);
 
   // 지도 초기화
@@ -31,47 +44,116 @@ export default function Home() {
     });
     mapRef.current = map;
 
-    // 컨트롤
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
 
-    // GeolocateControl (모바일 GPS 추적)
-    const geolocate = new mapboxgl.GeolocateControl({
-      positionOptions: { enableHighAccuracy: true },
-      trackUserLocation: true,
-      showUserHeading: true,
-      showAccuracyCircle: false,
-      fitBoundsOptions: { maxZoom: 15 },
+    // 로드되면 API에서 데이터 불러와서 소스/레이어 추가
+    map.on("load", async () => {
+      try {
+        const res = await fetch("/api/places", { cache: "no-store" });
+        if (!res.ok) throw new Error("Failed to load places");
+        const data: FC = await res.json();
+
+        if (!map.getSource("places")) {
+          map.addSource("places", { type: "geojson", data });
+        }
+
+        if (!map.getLayer("places-layer")) {
+          map.addLayer({
+            id: "places-layer",
+            type: "circle",
+            source: "places",
+            paint: {
+              "circle-radius": 7,
+              "circle-color": "#3b82f6",
+              "circle-stroke-width": 2,
+              "circle-stroke-color": "#ffffff",
+            },
+          });
+        }
+
+        // 커서 변경
+        map.on("mouseenter", "places-layer", () => (map.getCanvas().style.cursor = "pointer"));
+        map.on("mouseleave", "places-layer", () => (map.getCanvas().style.cursor = ""));
+
+        // 클릭 → 팝업
+        map.on("click", "places-layer", (e) => {
+          const feat = e.features?.[0] as any as Feature | undefined;
+          if (!feat) return;
+          const [lng, lat] = feat.geometry.coordinates;
+
+          popupRef.current?.remove();
+
+          const html = `
+            <div style="font-family:ui-sans-serif;min-width:220px;max-width:280px">
+              <div style="font-weight:700;font-size:16px;margin-bottom:6px">${feat.properties.name ?? "장소"}</div>
+              <div style="font-size:12px;color:#888;margin-bottom:10px">
+                ${feat.properties.summary ?? ""}
+              </div>
+              <a href="/places/${feat.properties.slug}" style="display:inline-block;background:#3b82f6;color:#fff;padding:8px 10px;border-radius:8px;text-decoration:none;font-weight:600">
+                상세보기
+              </a>
+            </div>
+          `;
+
+          popupRef.current = new mapboxgl.Popup({ closeOnClick: false, offset: 16 })
+            .setLngLat([lng, lat])
+            .setHTML(html)
+            .addTo(map);
+        });
+
+        // 빈 곳 클릭 → 팝업 닫기
+        map.on("click", (evt) => {
+          const feats = map.queryRenderedFeatures(evt.point, { layers: ["places-layer"] });
+          if (feats.length === 0) popupRef.current?.remove();
+        });
+      } catch (err) {
+        console.error(err);
+      }
     });
-    map.addControl(geolocate, "top-right");
 
     return () => {
+      popupRef.current?.remove();
       map.remove();
       mapRef.current = null;
     };
   }, []);
 
-  // 내 위치로 이동(버튼 동작)
+  // 내 위치 이동 (GPS → IP 폴백)
+  const locateMe = async () => {
+    if (locating) return;
+    setLocating(true);
+    try {
+      if ("geolocation" in navigator) {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 8000,
+            maximumAge: 0,
+          });
+        });
+        flyTo({ lng: pos.coords.longitude, lat: pos.coords.latitude });
+        return;
+      }
+      const ipPos = await ipFallback();
+      if (ipPos) flyTo(ipPos);
+    } catch {
+      const ipPos = await ipFallback();
+      if (ipPos) flyTo(ipPos);
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const flyTo = (pos: LngLat) => {
     if (!mapRef.current) return;
     mapRef.current.flyTo({ center: [pos.lng, pos.lat], zoom: 14, essential: true });
-
-    // 마커 업데이트
-    if (!meMarkerRef.current) {
-      meMarkerRef.current = new mapboxgl.Marker({ color: "#3b82f6" }); // 파란 마커
-    }
-    meMarkerRef.current.setLngLat([pos.lng, pos.lat]).addTo(mapRef.current);
   };
 
   const ipFallback = async (): Promise<LngLat | null> => {
     try {
-      // 간단한 IP 기반 위치 (권한 불필요, 대략적)
       const res = await fetch("https://ipapi.co/json/");
       if (!res.ok) throw new Error("ip geo failed");
       const data = await res.json();
-      if (typeof data.longitude === "number" && typeof data.latitude === "number") {
-        return { lng: data.longitude, lat: data.latitude };
-      }
-      // 일부 API는 문자열로 줄 수 있음
       if (data.longitude && data.latitude) {
         return { lng: Number(data.longitude), lat: Number(data.latitude) };
       }
@@ -81,53 +163,11 @@ export default function Home() {
     }
   };
 
-  const locateMe = async () => {
-    if (locating) return;
-    setLocating(true);
-    try {
-      // 1) 브라우저 GPS 우선 시도
-      if ("geolocation" in navigator) {
-        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 8000,
-            maximumAge: 0,
-          });
-        });
-        const coords = { lng: pos.coords.longitude, lat: pos.coords.latitude };
-        flyTo(coords);
-        return;
-      }
-      // 2) IP 기반 대체
-      const ipPos = await ipFallback();
-      if (ipPos) {
-        flyTo(ipPos);
-        return;
-      }
-      alert("위치를 가져올 수 없습니다. (브라우저 권한 또는 네트워크 확인)");
-    } catch (err) {
-      // GPS 실패 → IP fallback
-      const ipPos = await ipFallback();
-      if (ipPos) {
-        flyTo(ipPos);
-      } else {
-        alert("위치를 가져올 수 없습니다. (권한 거부 또는 네트워크 문제)");
-      }
-    } finally {
-      setLocating(false);
-    }
-  };
-
   return (
     <div className="font-sans min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#0f0f0f] to-[#1a1a1a] text-white p-8">
       {/* 로고 */}
       <header className="mb-12">
-        <Image
-          src="/wonderchain-logo.png"
-          alt="WonderChain Logo"
-          width={200}
-          height={60}
-        />
+        <Image src="/wonderchain-logo.png" alt="WonderChain Logo" width={200} height={60} />
       </header>
 
       {/* 소개/버튼 */}
@@ -157,12 +197,9 @@ export default function Home() {
           </a>
         </div>
 
-        {/* 지도 + 오버레이 버튼 */}
-        <div className="relative w-full h-[400px] mt-8 rounded-lg overflow-hidden ring-1 ring-white/10">
-          {/* 지도 컨테이너 */}
+        {/* 지도 + 내 위치 버튼 */}
+        <div className="relative w-full h-[45vh] md:h-[40vh] lg:h-[36vh] mt-8 rounded-lg overflow-hidden ring-1 ring-white/10">
           <div ref={mapContainerRef} className="w-full h-full" />
-
-          {/* 내 위치 버튼 (지도 위 오버레이) */}
           <button
             onClick={locateMe}
             disabled={locating}
