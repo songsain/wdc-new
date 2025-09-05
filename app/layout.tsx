@@ -36,13 +36,9 @@ export default function RootLayout({
         {/* 또는 Geist 폰트 사용시: */}
         {/* <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}> */}
         
-        <header>
-          <h1>WonderChain</h1>
-        </header>
         
         {children}
-        
-        <footer>© 2025 WonderChain</footer>
+      
       </body>
     </html>
   );
