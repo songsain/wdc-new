@@ -76,10 +76,10 @@ export default function Home() {
         map.on("mouseleave", "places-layer", () => (map.getCanvas().style.cursor = ""));
 
         // 클릭 → 팝업
-        map.on("click", "places-layer", (e) => {
-          const feat = e.features?.[0] as any as Feature | undefined;
+          map.on("click", "places-layer", (e) => {
+          const feat = e.features?.[0] as unknown as Feature | undefined;
           if (!feat) return;
-          const [lng, lat] = feat.geometry.coordinates;
+          const [lng, lat] = feat.geometry.coordinates as [number, number];
 
           popupRef.current?.remove();
 
