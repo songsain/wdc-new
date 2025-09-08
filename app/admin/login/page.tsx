@@ -1,60 +1,62 @@
-"use client";
+// app/admin/login/page.tsx
+"use client"; // 폼에서 상태를 다루려면 클라이언트 컴포넌트 필요
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
 
-export default function AdminLogin() {
+export default function AdminLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
-  const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg("");
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setErrorMsg(error.message);
-    } else {
-      router.push("/admin"); // 로그인 성공 시 관리자 대시보드로 이동
-    }
+    // 여기서 실제 로그인 로직(API 요청 등)을 처리하면 됨
+    console.log("로그인 시도:", { email, password });
+    alert(`로그인 시도: ${email}`);
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
+    <main style={{ padding: "40px", maxWidth: "400px", margin: "0 auto" }}>
+      <h1 style={{ textAlign: "center", marginBottom: "20px" }}>Admin Login</h1>
       <form
-        onSubmit={handleLogin}
-        className="bg-gray-800 p-6 rounded-lg w-full max-w-sm space-y-4"
+        onSubmit={handleSubmit}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+        }}
       >
-        <h1 className="text-2xl font-bold">관리자 로그인</h1>
+        <label>
+          Email
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            style={{ width: "100%", padding: "8px" }}
+          />
+        </label>
 
-        <input
-          type="email"
-          placeholder="Email"
-          className="w-full p-3 rounded text-black"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <input
-          type="password"
-          placeholder="Password"
-          className="w-full p-3 rounded text-black"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-
-        {errorMsg && <p className="text-red-400 text-sm">{errorMsg}</p>}
+        <label>
+          Password
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            style={{ width: "100%", padding: "8px" }}
+          />
+        </label>
 
         <button
           type="submit"
-          className="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded font-semibold"
+          style={{
+            padding: "10px",
+            background: "#0070f3",
+            color: "#fff",
+            border: "none",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
         >
           로그인
         </button>
