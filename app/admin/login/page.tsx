@@ -61,6 +61,11 @@ export default function AdminLoginPage() {
           로그인
         </button>
       </form>
+    <p style={{ marginTop: 12 }}>
+     <a href="/admin/forgot">Forgot your password?</a>
+    </p>
+
+    
     </main>
   );
 }
